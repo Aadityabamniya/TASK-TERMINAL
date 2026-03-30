@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TASK TERMINAL | OFFICIAL</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="app-container">
+        
+        <div id="view-initial" class="view-container">
+            <div class="card-ui">
+                <div class="header">
+                    <h1>TASK MASTER <span class="accent-red">ZERO</span></h1>
+                </div>
+                <button class="btn-main" onclick="ui.show('view-create')">CREATE GROUP</button>
+                <button class="btn-main" onclick="ui.show('view-join')">JOIN GROUP</button>
+            </div>
+        </div>
+
+        <div id="view-create" class="view-container" style="display:none;">
+            <div class="card-ui">
+                <div class="back-nav" onclick="ui.show('view-initial')">←</div>
+                <h2 class="official-title">CREATE NEW GROUP</h2>
+                
+                <input type="text" id="new-group-name" placeholder="Enter Group Name">
+                
+                <div id="generated-code-box" style="display:none;">
+                    <p class="success-text">Group Created Successfully!</p>
+                    <p class="hint">Share this code with your assignees:</p>
+                    <div class="code-display" id="display-group-code"></div>
+                </div>
+
+                <button class="btn-confirm" id="btn-create-group" onclick="core.createGroup()">GENERATE CODE</button>
+                <button class="btn-main" id="btn-proceed-login" style="display:none;" onclick="core.prepLoginScreen()">PROCEED TO LOGIN</button>
+            </div>
+        </div>
+
+        <div id="view-join" class="view-container" style="display:none;">
+            <div class="card-ui">
+                <div class="back-nav" onclick="ui.show('view-initial')">←</div>
+                <h2 class="official-title">JOIN EXISTING GROUP</h2>
+                <input type="text" id="join-group-code" placeholder="Enter Group Code">
+                <button class="btn-confirm" onclick="core.joinGroup()">JOIN</button>
+            </div>
+        </div>
+
+        <div id="view-login" class="view-container" style="display:none;">
+            <div class="card-ui">
+                <div class="back-nav" onclick="ui.show('view-initial')">←</div>
+                <h2 class="official-title" id="login-group-title">OFFICIAL LOGIN</h2>
+                
+                <div class="login-inputs">
+                    <input type="text" id="login-user" placeholder="Username">
+                    <input type="password" id="login-pass" placeholder="Password (Create one if first login)">
+                </div>
+
+                <div id="sector-selection-area">
+                    <h3 class="input-label">Select Sectors to Enroll (Assignees Only):</h3>
+                    <div id="login-sector-list" class="checkbox-list">
+                        </div>
+                </div>
+
+                <div class="role-selection">
+                    <button class="role-btn authority-btn" onclick="core.login('authority')">JOIN AS AUTHORITY</button>
+                    <button class="role-btn assignee-btn" onclick="core.login('assignee')">JOIN AS ASSIGNEE</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-dash" class="dashboard-view" style="display:none;">
+            <header class="main-header">
+                <div class="header-left">
+                    <div class="branding">
+                        <span class="b-task">TASK</span><span class="b-terminal">TERMINAL</span>
+                    </div>
+                </div>
+                
+                <div class="header-right">
+                    <div class="notif-wrapper" onclick="core.toggleNotifications()">
+                        <span class="notif-bell">🔔<span id="notif-count">0</span></span>
+                        <div id="notif-dropdown" class="notif-dropdown" style="display:none;">
+                            <div class="notif-header">NOTIFICATIONS</div>
+                            <div id="notif-list" class="notif-list">
+                                </div>
+                        </div>
+                    </div>
+                    <button class="btn-logout-glow" onclick="core.logout()">LOGOUT</button>
+                </div>
+            </header>
+
+            <div class="dashboard-container">
+                <main class="content-area">
+                    <h2 id="welcome-msg" class="section-title">SECTOR OVERVIEW</h2>
+                    <h3 id="group-name-display" class="group-subtitle">Group: </h3>
+                    <div id="sector-display" class="sector-grid">
+                        </div>
+                </main>
+
+                <aside class="action-zone" id="auth-tools" style="display:none;">
+                    <button class="btn-create-sector" onclick="core.createNewSector()">+ CREATE NEW SECTOR</button>
+                </aside>
+            </div>
+        </div>
+
+        <div id="view-auth-action" class="view-container" style="display:none;">
+            <div class="card-ui">
+                <div class="back-nav" onclick="ui.show('view-dash')">←</div>
+                <h2 class="official-title" id="action-sector-title">SECTOR NAME</h2>
+                <button class="btn-main" onclick="core.renderAssignList()">ASSIGN TASK</button>
+                <button class="btn-main" onclick="core.openTracking()">TRACK TASKS</button>
+            </div>
+        </div>
+
+        <div id="view-assign-list" class="view-container" style="display:none;">
+            <div class="card-ui" style="width: 500px; max-width: 95%;">
+                <div class="back-nav" onclick="ui.show('view-auth-action')">←</div>
+                <h2 class="official-title">ENROLLED EMPLOYEES</h2>
+                <input type="text" id="emp-search" placeholder="Search employee..." onkeyup="core.filterEmployees()">
+                <div id="employee-list-container" class="scroll-list"></div>
+            </div>
+        </div>
+
+        <div id="view-deploy-task" class="view-container" style="display:none;">
+            <div class="card-ui">
+                <div class="back-nav" onclick="ui.show('view-assign-list')">←</div>
+                <h2 class="official-title">DEPLOY TASK TO: <span id="deploy-emp-name" class="accent-red"></span></h2>
+                <input type="text" id="new-task-title" placeholder="Task Name">
+                <label class="input-label">Date Limit:</label>
+                <input type="datetime-local" id="new-task-date">
+                <button class="btn-confirm" onclick="core.deployTask()">DEPLOY TASK</button>
+            </div>
+        </div>
+
+        <div id="view-tracking" class="dashboard-view" style="display:none;">
+            <header class="main-header">
+                <div class="header-left" style="display:flex; align-items:center;">
+                    <div class="back-nav" style="position:static; margin-right:20px;" onclick="ui.show('view-dash')">←</div>
+                    <h2 class="official-title" style="margin:0;" id="track-sector-title">SECTOR TASKS</h2>
+                </div>
+            </header>
+            <div class="dashboard-container" style="flex-direction: column;">
+                <div class="tab-container" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <button class="tab-btn active" id="tab-all" onclick="core.switchTab('all')">ALL</button>
+                        <button class="tab-btn" id="tab-pending" onclick="core.switchTab('pending')">PENDING</button>
+                        <button class="tab-btn" id="tab-completed" onclick="core.switchTab('completed')">COMPLETED</button>
+                    </div>
+                    
+                    <div id="auto-delete-container" style="display:none; align-items: center; gap: 10px;">
+                        <label style="font-size: 11px; font-weight: bold; color: var(--corp-blue);">AUTO-CLEAR:</label>
+                        <select id="auto-clear-select" onchange="core.updateAutoClear()" style="padding: 5px; border-radius: 4px; border: 1px solid var(--border-gray); font-size: 11px; cursor: pointer;">
+                            <option value="never">Never</option>
+                            <option value="24h">24 Hours (1 Day)</option>
+                            <option value="1w">1 Week</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="task-list-container" class="task-list"></div>
+            </div>
+        </div>
+
+        <div id="view-task-details" class="view-container" style="display:none;">
+            <div class="card-ui" style="text-align: left; width: 500px;">
+                <div class="back-nav" onclick="ui.show('view-tracking')">←</div>
+                <h2 class="official-title" style="text-align: center;">TASK DETAILS</h2>
+                <div id="task-detail-content" style="margin-bottom: 20px;"></div>
+                <button id="btn-complete-task" class="btn-confirm" style="background:#28a745; display:none;" onclick="core.completeTask()">TASK COMPLETED</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
