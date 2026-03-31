@@ -353,77 +353,45 @@ button {
    ========================================= */
 @media screen and (max-width: 768px) {
     
-    /* 1. Fix the Body so it doesn't cause scrolling */
-    html, body {
-        width: 100%;
-        margin: 0;
-        padding: 0;
+    /* 1. Make the main boxes fit the screen */
+    .view-container, 
+    .dashboard-view {
+        width: 90% !important;
+        margin: 20px auto !important;
+        padding: 20px !important;
     }
 
-    /* 2. TOP WHITE BOX: Stretch edge-to-edge & fit contents */
-    header, .top-bar, .nav-bar, .header-container {
-        width: 100% !important;
-        margin: 0 !important; /* Removes the gap on the left/right */
-        padding: 10px 5px !important; /* Small inner padding */
-        box-sizing: border-box !important; /* Keeps it strictly inside the screen */
-        display: flex !important;
-        flex-direction: row !important; /* Keeps them on the same line */
-        justify-content: space-between !important;
-        align-items: center !important;
-    }
-
-    /* Shrink the Branding and Logout so they fit together perfectly */
-    h1, h2, .brand-title { 
-        font-size: 15px !important; 
-        margin: 0 !important;
-        white-space: nowrap !important;
-    }
-    
-    .btn-logout, #btn-logout {
-        font-size: 11px !important;
-        padding: 6px 10px !important;
-        margin: 0 !important;
-        white-space: nowrap !important;
-    }
-
-    /* 3. THE TABS: Force them to be Horizontal */
+    /* 2. Stack elements vertically instead of side-by-side */
+    #sector-display,
+    #auth-tools,
     .tab-container {
-        width: 100% !important;
-        box-sizing: border-box !important;
-        display: flex !important;
-        flex-direction: row !important; /* Side-by-side */
-        justify-content: space-between !important;
-        gap: 4px !important;
-    }
-
-    .tab-btn {
-        flex: 1 !important; /* Makes all 3 tabs share exact equal space */
-        font-size: 11px !important; /* Small enough so "Completed" fits */
-        padding: 8px 2px !important;
-        text-align: center !important;
-        margin-bottom: 15px !important;
-    }
-
-    /* 4. MAIN DASHBOARD CONTENT */
-    .view-container, .dashboard-view {
-        width: 95% !important;
-        box-sizing: border-box !important;
-        margin: 10px auto !important;
-        padding: 15px !important;
-    }
-
-    /* Stack interior items properly */
-    #sector-display, #auth-tools {
         display: flex;
         flex-direction: column;
-        width: 100%;
+        align-items: center;
         gap: 15px;
     }
 
-    /* Ensure buttons and cards don't break width */
-    .sector-card, .task-card, .employee-row, .btn-main, 
-    input[type="text"], input[type="password"], input[type="datetime-local"] {
+    /* 3. Make cards and buttons full-width for easy thumb tapping */
+    .sector-card, 
+    .task-card, 
+    .employee-row,
+    .btn-main, 
+    .tab-btn {
         width: 100% !important;
-        box-sizing: border-box !important;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+
+    /* 4. Fix Title Sizes so they don't break the screen */
+    h1 { font-size: 24px !important; }
+    h2 { font-size: 20px !important; }
+    h3 { font-size: 18px !important; }
+
+    /* 5. Inputs and Text boxes */
+    input[type="text"], 
+    input[type="password"], 
+    input[type="datetime-local"] {
+        width: 100% !important;
+        box-sizing: border-box;
     }
 }
