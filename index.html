@@ -6,6 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TASK TERMINAL | OFFICIAL</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("Background Brain Registered!"))
+      .catch((err) => console.log("Service Worker Failed:", err));
+  }
+</script>
 </head>
 <body>
 
