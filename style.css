@@ -482,4 +482,18 @@ button {
         from { transform: translateY(-120%); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
     }
+    /* 8. FIX THE NOTIFICATION BOX OVERFLOW */
+    .notif-wrapper {
+        position: static !important; /* Detaches the box from the tiny bell */
+    }
+
+    .notif-dropdown {
+        position: absolute !important;
+        top: 60px !important; /* Puts it right below your white header */
+        left: 5% !important;
+        right: auto !important;
+        width: 90% !important; /* Safely fits inside the phone screen */
+        box-sizing: border-box !important;
+        z-index: 3000 !important;
+    }
 }
