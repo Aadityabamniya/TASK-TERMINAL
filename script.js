@@ -8,9 +8,11 @@ const firebaseConfig = {
     storageBucket: "task-terminal-9e678.firebasestorage.app",
     messagingSenderId: "418579327777",
     appId: "1:418579327777:web:80f9cbfb7a3b77107aec60",
-    measurementId: "G-KYR3C6TPBH"
+    measurementId: "G-KYR3C6TPBH",
+    
+    // ASIA URL:
+    databaseURL: "https://task-terminal-9e678-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
-
 // Initialize Firebase App & Database Reference
 firebase.initializeApp(firebaseConfig);
 const cloudDB = firebase.database().ref('TASK_TERMINAL_LIVE_DB');
@@ -28,21 +30,28 @@ const core = {
     currentTab: 'all',
 
     save() {
-        // SAVING TO THE CLOUD INSTANTLY!
-        cloudDB.set(this.db);
+        // This will now tell us exactly IF and WHY it fails
+        cloudDB.set(this.db)
+            .then(() => {
+                console.log("Cloud Write Successful!");
+            })
+            .catch((error) => {
+                console.error("Cloud Write Failed:", error);
+                alert("CRITICAL ERROR: Laptop failed to write to cloud.\nReason: " + error.message);
+            });
     },
 
     saveSession() {
-        // Changed to sessionStorage so tabs don't share logins
-        sessionStorage.setItem('TASK_SESSION', JSON.stringify({
+        // UPGRADE: Changed to localStorage so login is permanent until explicitly logged out
+        localStorage.setItem('TASK_SESSION', JSON.stringify({
             user: this.currentUser,
             groupCode: this.currentGroupCode
         }));
     },
 
     init() {
-        // Changed to sessionStorage to read the tab's specific login
-        const session = JSON.parse(sessionStorage.getItem('TASK_SESSION'));
+        // UPGRADE: Changed to localStorage to remember users forever
+        const session = JSON.parse(localStorage.getItem('TASK_SESSION'));
         
         if (session && session.user && session.groupCode) {
             this.currentGroupCode = session.groupCode;
@@ -120,8 +129,23 @@ const core = {
         const code = document.getElementById('join-group-code').value.trim().toUpperCase();
         if (!code) return alert("Please enter a Group Code.");
         
-        if (!this.db.groups[code]) {
-            return alert("Invalid Group Code. Please check and try again.");
+        // UPGRADE: Smart Sync to fix "Invalid Code" error!
+        // If the code is not in the browser yet, ask the Cloud directly before failing.
+        if (!this.db.groups || !this.db.groups[code]) {
+            cloudDB.child('groups').child(code).once('value').then((snapshot) => {
+                if (snapshot.exists()) {
+                    // Force update local memory from cloud and proceed
+                    if (!this.db.groups) this.db.groups = {};
+                    this.db.groups[code] = snapshot.val();
+                    this.currentGroupCode = code;
+                    this.prepLoginScreen();
+                } else {
+                    alert("Invalid Group Code. Please check and try again.");
+                }
+            }).catch(() => {
+                alert("Cloud connection error. Please check your internet.");
+            });
+            return; // Stop here, the code above handles the rest
         }
 
         this.currentGroupCode = code;
@@ -618,8 +642,8 @@ const core = {
     logout() {
         this.currentUser = null;
         this.currentGroupCode = null;
-        // Changed to sessionStorage to clear only this tab's login
-        sessionStorage.removeItem('TASK_SESSION'); 
+        // UPGRADE: Changed to localStorage so explicit logout clears the permanent session
+        localStorage.removeItem('TASK_SESSION'); 
         ui.show('view-initial');
     }
 };
