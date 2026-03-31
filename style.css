@@ -394,4 +394,74 @@ button {
         width: 100% !important;
         box-sizing: border-box;
     }
+    /* Add this inside your existing @media screen and (max-width: 768px) { ... } */
+    
+    .notif-wrapper {
+        position: static; /* Detaches the box from the bell on mobile */
+    }
+
+    #notif-dropdown {
+        position: fixed; /* Floats the box on the screen */
+        top: 70px; /* Places it just below your top bar */
+        left: 5%;
+        right: 5%;
+        width: 90% !important; /* Makes it take up the full screen width */
+        max-width: none;
+        box-shadow: 0px 10px 40px rgba(0,0,0,0.8);
+    }
+}
+/* =========================================
+   🔔 WHATSAPP-STYLE POP-UP NOTIFICATIONS
+   ========================================= */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast-msg {
+    background-color: #2c2f33; /* Sleek dark background like YouTube */
+    color: #ffffff;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    min-width: 250px;
+    max-width: 350px;
+    border-left: 5px solid #00a8ff; /* Brand accent color */
+    animation: slideInRight 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    cursor: pointer;
+    font-family: sans-serif;
+    line-height: 1.4;
+}
+
+/* Animations for Laptop */
+@keyframes slideInRight {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(120%); opacity: 0; }
+}
+
+/* Mobile Adjustments: Slide down from the top like WhatsApp */
+@media screen and (max-width: 768px) {
+    #toast-container {
+        top: 10px;
+        left: 5%;
+        right: 5%;
+    }
+    .toast-msg {
+        width: 100%;
+        box-sizing: border-box;
+        animation: slideInDown 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+    @keyframes slideInDown {
+        from { transform: translateY(-120%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
 }

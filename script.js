@@ -18,23 +18,21 @@ firebase.initializeApp(firebaseConfig);
 const cloudDB = firebase.database().ref('TASK_TERMINAL_LIVE_DB');
 
 const core = {
-    // 1. Initialize Database with Group Structure (Cloud will populate this)
+    // 1. Initialize Database with Group Structure
     db: { groups: {} },
     currentGroupCode: null,
     currentUser: null,
     
-    // New Feature Variables
+    // Feature Variables
     activeSector: null,
     activeAssignee: null,
     activeTaskId: null,
     currentTab: 'all',
+    lastNotifTime: null, // UPGRADE: Tracks the exact time of the last notification to prevent spam
 
     save() {
-        // This will now tell us exactly IF and WHY it fails
         cloudDB.set(this.db)
-            .then(() => {
-                console.log("Cloud Write Successful!");
-            })
+            .then(() => { console.log("Cloud Write Successful!"); })
             .catch((error) => {
                 console.error("Cloud Write Failed:", error);
                 alert("CRITICAL ERROR: Laptop failed to write to cloud.\nReason: " + error.message);
@@ -42,7 +40,6 @@ const core = {
     },
 
     saveSession() {
-        // UPGRADE: Changed to localStorage so login is permanent until explicitly logged out
         localStorage.setItem('TASK_SESSION', JSON.stringify({
             user: this.currentUser,
             groupCode: this.currentGroupCode
@@ -50,7 +47,6 @@ const core = {
     },
 
     init() {
-        // UPGRADE: Changed to localStorage to remember users forever
         const session = JSON.parse(localStorage.getItem('TASK_SESSION'));
         
         if (session && session.user && session.groupCode) {
@@ -58,23 +54,17 @@ const core = {
             this.currentUser = session.user;
         }
 
-        // --- THE MAGIC REAL-TIME CLOUD LISTENER ---
-        // This replaces the old 'storage' event listener and syncs across all devices!
+        // --- REAL-TIME CLOUD LISTENER ---
         cloudDB.on('value', (snapshot) => {
             const data = snapshot.val();
             this.db = data || { groups: {} };
             
-            // If someone is actively logged in on this device while the cloud updates...
             if (this.currentUser && this.currentGroupCode) {
                 const group = this.db.groups[this.currentGroupCode];
                 
-                // Check if they still exist (maybe an authority deleted the group)
                 if (group && group.users && group.users[this.currentUser.name]) {
-                    
-                    // Update user properties in case they changed in the cloud
                     this.currentUser = { name: this.currentUser.name, ...group.users[this.currentUser.name] };
                     
-                    // Live-update whatever screen they are currently looking at!
                     this.updateNotificationUI();
                     if (document.getElementById('view-dash').style.display === 'block') {
                         this.renderDashboard();
@@ -86,7 +76,7 @@ const core = {
                         this.viewTaskDetails(this.activeTaskId); 
                     }
                 } else {
-                    this.logout(); // Kick them out if account/group vanished
+                    this.logout(); 
                 }
             }
         });
@@ -105,10 +95,8 @@ const core = {
         
         if (!name) return alert("Please enter a Group Name first.");
         
-        // Generate a 6-character random code
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        // Initialize the group structure
         this.db.groups[code] = { 
             name: name, 
             sectors: [], 
@@ -117,7 +105,6 @@ const core = {
         this.save();
         this.currentGroupCode = code;
         
-        // UI Updates: Show code box, hide generate button, show proceed button
         document.getElementById('display-group-code').innerText = code;
         document.getElementById('generated-code-box').style.display = 'block';
         nameInput.disabled = true; 
@@ -129,12 +116,9 @@ const core = {
         const code = document.getElementById('join-group-code').value.trim().toUpperCase();
         if (!code) return alert("Please enter a Group Code.");
         
-        // UPGRADE: Smart Sync to fix "Invalid Code" error!
-        // If the code is not in the browser yet, ask the Cloud directly before failing.
         if (!this.db.groups || !this.db.groups[code]) {
             cloudDB.child('groups').child(code).once('value').then((snapshot) => {
                 if (snapshot.exists()) {
-                    // Force update local memory from cloud and proceed
                     if (!this.db.groups) this.db.groups = {};
                     this.db.groups[code] = snapshot.val();
                     this.currentGroupCode = code;
@@ -145,14 +129,13 @@ const core = {
             }).catch(() => {
                 alert("Cloud connection error. Please check your internet.");
             });
-            return; // Stop here, the code above handles the rest
+            return; 
         }
 
         this.currentGroupCode = code;
         this.prepLoginScreen();
     },
 
-    // 3. Prepare Login Screen (Populate Sectors)
     prepLoginScreen() {
         const group = this.db.groups[this.currentGroupCode];
         document.getElementById('login-group-title').innerText = `LOGIN: ${group.name.toUpperCase()}`;
@@ -160,7 +143,6 @@ const core = {
         const sectorList = document.getElementById('login-sector-list');
         sectorList.innerHTML = "";
 
-        // Cloud safety check: Firebase drops empty arrays
         if (!group.sectors || group.sectors.length === 0) {
             sectorList.innerHTML = `<p class="hint">No sectors created in this group yet.</p>`;
         } else {
@@ -174,14 +156,12 @@ const core = {
             });
         }
 
-        // Clear previous inputs
         document.getElementById('login-user').value = '';
         document.getElementById('login-pass').value = '';
 
         ui.show('view-login');
     },
 
-    // 4. Login Logic
     login(role) {
         const user = document.getElementById('login-user').value.trim();
         const pass = document.getElementById('login-pass').value.trim();
@@ -189,15 +169,12 @@ const core = {
         if (!user || !pass) return alert("Please enter both Username and Password.");
 
         const group = this.db.groups[this.currentGroupCode];
-        if (!group.users) group.users = {}; // Cloud safety check
+        if (!group.users) group.users = {}; 
 
-        // Gather checked sectors
         const checks = document.querySelectorAll('.sector-check:checked');
         const selectedSectors = Array.from(checks).map(c => c.value);
 
-        // Check if user exists in this specific group
         if (!group.users[user]) {
-            // First Login Registration
             group.users[user] = { 
                 password: pass, 
                 role: role, 
@@ -205,11 +182,9 @@ const core = {
             };
             alert(`New account recognized in group "${group.name}". Password set!`);
         } else {
-            // Verify Password
             if (group.users[user].password !== pass) {
                 return alert("Incorrect password for this user.");
             }
-            // Update their enrolled sectors if they are an assignee logging in again
             if (role === 'assignee') {
                 group.users[user].enrolled = selectedSectors;
             }
@@ -223,7 +198,6 @@ const core = {
         ui.show('view-dash');
     },
 
-    // 5. Dashboard & Sector Logic
     renderDashboard() {
         const display = document.getElementById('sector-display');
         const authTools = document.getElementById('auth-tools');
@@ -236,7 +210,6 @@ const core = {
         welcome.innerText = `OFFICIAL PORTAL: ${this.currentUser.name.toUpperCase()}`;
         groupDisplay.innerText = `GROUP: ${group.name} (Code: ${this.currentGroupCode})`;
 
-        // Run overdue check AND System Maintenance when loading dash
         this.checkOverdueTasks();
         this.runSystemMaintenance(); 
         this.updateNotificationUI();
@@ -274,9 +247,8 @@ const core = {
         const sName = prompt("Enter New Sector Name:");
         if (sName) {
             const group = this.db.groups[this.currentGroupCode];
-            if (!group.sectors) group.sectors = []; // Cloud safety check
+            if (!group.sectors) group.sectors = []; 
             
-            // Prevent duplicates
             if (!group.sectors.includes(sName)) {
                 group.sectors.push(sName);
                 this.save();
@@ -287,7 +259,6 @@ const core = {
         }
     },
 
-    // --- SECTOR & ASSIGNMENT LOGIC ---
     openSector(sectorName) {
         this.activeSector = sectorName;
         if (this.currentUser.role === 'authority') {
@@ -306,7 +277,6 @@ const core = {
         
         if (!group.users) group.users = {};
 
-        // Find employees enrolled in this sector
         const enrolledEmployees = Object.keys(group.users).filter(username => {
             const u = group.users[username];
             return u.role === 'assignee' && u.enrolled && u.enrolled.includes(this.activeSector);
@@ -349,7 +319,7 @@ const core = {
         if (!title || !dateLimit) return alert("Task Name and Date Limit are required.");
 
         const group = this.db.groups[this.currentGroupCode];
-        if (!group.tasks) group.tasks = []; // Initialize if missing
+        if (!group.tasks) group.tasks = []; 
 
         const newTask = {
             id: Date.now(),
@@ -358,16 +328,15 @@ const core = {
             dueDate: dateLimit,
             assignedTo: this.activeAssignee,
             assignedBy: this.currentUser.name,
-            status: 'pending', // pending, completed, overdue
+            status: 'pending', 
             overdueNotified: false
         };
 
         group.tasks.push(newTask);
         
-        // UPGRADE: Added newTask.id here so the notification links to the task
         this.addNotification(
             this.activeAssignee, 
-            `New Task Assigned: "${title}" in ${this.activeSector} by ${this.currentUser.name.toUpperCase()}`,
+            `📝 <strong>${title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">New task in ${this.activeSector} by ${this.currentUser.name}</span>`,
             newTask.id
         );
         
@@ -377,7 +346,6 @@ const core = {
         ui.show('view-auth-action');
     },
 
-    // --- TRACKING & TABS LOGIC ---
     openTracking() {
         this.switchTab('all');
         ui.show('view-tracking');
@@ -403,7 +371,7 @@ const core = {
     },
 
     renderTaskList() {
-        this.checkOverdueTasks(); // Update statuses before rendering
+        this.checkOverdueTasks(); 
         
         const group = this.db.groups[this.currentGroupCode];
         const container = document.getElementById('task-list-container');
@@ -411,13 +379,11 @@ const core = {
 
         if (!group.tasks) group.tasks = [];
 
-        // Filter tasks for this sector, and by user if assignee
         let tasks = group.tasks.filter(t => t.sector === this.activeSector);
         if (this.currentUser.role === 'assignee') {
             tasks = tasks.filter(t => t.assignedTo === this.currentUser.name);
         }
 
-        // Filter by Tab
         if (this.currentTab === 'pending') {
             tasks = tasks.filter(t => t.status === 'pending' || t.status === 'overdue');
         } else if (this.currentTab === 'completed') {
@@ -455,7 +421,7 @@ const core = {
         if(!group.tasks) return;
 
         const task = group.tasks.find(t => t.id === taskId);
-        if(!task) return; // Safety check if auto-deleted
+        if(!task) return; 
 
         this.activeTaskId = taskId;
 
@@ -486,8 +452,11 @@ const core = {
         task.status = 'completed';
         task.completedAt = Date.now(); 
         
-        // UPGRADE: Added task.id
-        this.addNotification(task.assignedBy, `Task Completed: ${this.currentUser.name} finished "${task.title}".`, task.id);
+        this.addNotification(
+            task.assignedBy, 
+            `✅ <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">Completed by ${this.currentUser.name}</span>`, 
+            task.id
+        );
         this.save();
         
         alert("Task marked as completed!");
@@ -498,15 +467,15 @@ const core = {
         const group = this.db.groups[this.currentGroupCode];
         const task = group.tasks.find(t => t.id === taskId);
         
-        // UPGRADE: Added task.id
-        this.addNotification(task.assignedTo, `REMINDER: Complete task "${task.title}" by ${new Date(task.dueDate).toLocaleDateString()}`, task.id);
+        this.addNotification(
+            task.assignedTo, 
+            `🔔 <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">Reminder: Due by ${new Date(task.dueDate).toLocaleDateString()}</span>`, 
+            task.id
+        );
         this.save();
         alert("Reminder sent to " + task.assignedTo);
     },
 
-    // --- NOTIFICATION & TIME LOGIC ---
-    
-    // UPGRADE: Function now accepts a taskId parameter
     addNotification(username, msg, taskId = null) {
         const group = this.db.groups[this.currentGroupCode];
         if (!group.users[username].notifications) group.users[username].notifications = [];
@@ -515,11 +484,62 @@ const core = {
         if (this.currentUser && this.currentUser.name === username) this.updateNotificationUI();
     },
 
+    // --- UPGRADE: THE TOAST ENGINE ---
+    showToast(htmlMsg, taskId) {
+        // 1. Create the container if it doesn't exist
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+
+        // 2. Create the Pop-up card
+        const toast = document.createElement('div');
+        toast.className = 'toast-msg';
+        toast.innerHTML = htmlMsg;
+
+        // 3. Make it clickable to jump straight to the task
+        if (taskId) {
+            toast.onclick = () => {
+                this.handleNotifClick(taskId, { stopPropagation: () => {} });
+                // Dismiss toast instantly when clicked
+                toast.style.animation = 'fadeOutRight 0.3s forwards';
+                setTimeout(() => toast.remove(), 300);
+            };
+        }
+
+        container.appendChild(toast);
+
+        // 4. Automatically disappear after 4 seconds
+        setTimeout(() => {
+            if (document.body.contains(toast)) {
+                toast.style.animation = 'fadeOutRight 0.3s forwards';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 4000);
+    },
+
     updateNotificationUI() {
         if (!this.currentUser || !this.currentGroupCode) return;
         const group = this.db.groups[this.currentGroupCode];
         const userNode = group.users[this.currentUser.name];
         if (!userNode.notifications) userNode.notifications = [];
+
+        // --- UPGRADE: TRIGGER TOAST ONLY FOR NEW CLOUD EVENTS ---
+        if (userNode.notifications.length > 0) {
+            const latestNotif = userNode.notifications[0];
+            
+            if (this.lastNotifTime === null) {
+                // First time loading the app, don't show popups for old stuff
+                this.lastNotifTime = latestNotif.time;
+            } else if (latestNotif.time > this.lastNotifTime) {
+                // A BRAND NEW notification arrived! Show the WhatsApp-style popup!
+                this.showToast(latestNotif.msg, latestNotif.taskId);
+                this.lastNotifTime = latestNotif.time;
+            }
+        }
+        // -------------------------------------------------------
 
         const unread = userNode.notifications.filter(n => !n.read).length;
         document.getElementById('notif-count').innerText = unread;
@@ -531,7 +551,6 @@ const core = {
             list.innerHTML = "<p style='padding:15px; text-align:center; color:#888;'>No notifications</p>";
         } else {
             userNode.notifications.forEach(n => {
-                // UPGRADE: Make notification clickable if it has a taskId attached
                 const clickAttr = n.taskId ? `onclick="core.handleNotifClick(${n.taskId}, event)" style="cursor:pointer;" title="Click to view task"` : '';
                 list.innerHTML += `<div class="notif-item ${n.read ? '' : 'unread'}" ${clickAttr}>${n.msg}</div>`;
             });
@@ -542,7 +561,6 @@ const core = {
         const drop = document.getElementById('notif-dropdown');
         drop.style.display = drop.style.display === 'none' ? 'block' : 'none';
         
-        // Mark all as read when opened
         if (drop.style.display === 'block') {
             const group = this.db.groups[this.currentGroupCode];
             group.users[this.currentUser.name].notifications.forEach(n => n.read = true);
@@ -551,17 +569,17 @@ const core = {
         }
     },
 
-    // UPGRADE: New function to handle clicking a specific notification
     handleNotifClick(taskId, event) {
-        event.stopPropagation(); // Prevents the dropdown from instantly reopening
-        document.getElementById('notif-dropdown').style.display = 'none'; // Close dropdown
+        if(event && event.stopPropagation) event.stopPropagation(); 
+        
+        const dropdown = document.getElementById('notif-dropdown');
+        if (dropdown) dropdown.style.display = 'none'; 
         
         const group = this.db.groups[this.currentGroupCode];
         if (group && group.tasks) {
             const task = group.tasks.find(t => t.id === taskId);
             if (task) {
                 this.activeSector = task.sector;
-                // Jump straight to the task detail page
                 this.viewTaskDetails(taskId);
             } else {
                 alert("This task is no longer available (it may have been auto-cleared).");
@@ -582,9 +600,17 @@ const core = {
                 if (!task.overdueNotified) {
                     task.status = 'overdue';
                     task.overdueNotified = true;
-                    // UPGRADE: Added task.id
-                    this.addNotification(task.assignedTo, `⚠️ OVERDUE: Task "${task.title}" date limit crossed!`, task.id);
-                    this.addNotification(task.assignedBy, `⚠️ OVERDUE: ${task.assignedTo} missed limit for "${task.title}"!`, task.id);
+                    
+                    this.addNotification(
+                        task.assignedTo, 
+                        `⚠️ <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#ff4444;">Date limit crossed!</span>`, 
+                        task.id
+                    );
+                    this.addNotification(
+                        task.assignedBy, 
+                        `⚠️ <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#ff4444;">${task.assignedTo} missed the limit!</span>`, 
+                        task.id
+                    );
                     changed = true;
                 }
             }
@@ -592,7 +618,6 @@ const core = {
         if (changed) this.save();
     },
 
-    // --- SYSTEM MAINTENANCE LOGIC ---
     updateAutoClear() {
         const val = document.getElementById('auto-clear-select').value;
         const group = this.db.groups[this.currentGroupCode];
@@ -609,16 +634,13 @@ const core = {
         const now = Date.now();
         const oneDayMs = 24 * 60 * 60 * 1000;
 
-        // 1. Clear old notifications for current user (Strictly 24h)
         const userNode = group.users[this.currentUser.name];
         if (userNode && userNode.notifications) {
             const initLen = userNode.notifications.length;
-            // Keep only notifications younger than 24 hours
             userNode.notifications = userNode.notifications.filter(n => (now - n.time) < oneDayMs);
             if (userNode.notifications.length !== initLen) changed = true;
         }
 
-        // 2. Clear completed tasks based on Authority preference
         const pref = group.autoClearPref || 'never';
         if (pref !== 'never' && group.tasks) {
             let limitMs = 0;
@@ -627,11 +649,10 @@ const core = {
 
             const initTaskLen = group.tasks.length;
             group.tasks = group.tasks.filter(t => {
-                // If it is completed AND we have a timestamp for it
                 if (t.status === 'completed' && t.completedAt) {
-                    return (now - t.completedAt) < limitMs; // Keep it if it's younger than the limit
+                    return (now - t.completedAt) < limitMs; 
                 }
-                return true; // Keep pending/overdue tasks
+                return true; 
             });
             if (group.tasks.length !== initTaskLen) changed = true;
         }
@@ -642,7 +663,7 @@ const core = {
     logout() {
         this.currentUser = null;
         this.currentGroupCode = null;
-        // UPGRADE: Changed to localStorage so explicit logout clears the permanent session
+        this.lastNotifTime = null; // UPGRADE: Reset notification tracker on logout
         localStorage.removeItem('TASK_SESSION'); 
         ui.show('view-initial');
     }
@@ -650,17 +671,13 @@ const core = {
 
 const ui = {
     show(id) {
-        // Hide everything
         document.querySelectorAll('.view-container, .dashboard-view').forEach(v => v.style.display = 'none');
-        // Show target
         document.getElementById(id).style.display = 'flex';
         
-        // Fix for dashboard which needs block/flex row depending on screen
         if(id === 'view-dash' || id === 'view-tracking') {
             document.getElementById(id).style.display = 'block';
         }
 
-        // Reset the create group view if we navigate back to it
         if(id === 'view-create') {
             document.getElementById('new-group-name').value = '';
             document.getElementById('new-group-name').disabled = false;
@@ -676,15 +693,14 @@ window.onload = () => {
     core.init();
 };
 
-/* --- UPGRADE: CLICK OUTSIDE TO CLOSE NOTIFICATION --- */
+/* --- CLICK OUTSIDE TO CLOSE NOTIFICATION --- */
 document.addEventListener('click', (event) => {
     const wrapper = document.querySelector('.notif-wrapper');
     const dropdown = document.getElementById('notif-dropdown');
     
-    // If we click anywhere that is NOT inside the wrapper, and the dropdown is currently open
     if (wrapper && dropdown && dropdown.style.display === 'block') {
         if (!wrapper.contains(event.target)) {
-            dropdown.style.display = 'none'; // Hide it!
+            dropdown.style.display = 'none'; 
         }
     }
 });
