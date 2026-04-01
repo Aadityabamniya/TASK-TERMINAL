@@ -135,6 +135,13 @@ button {
 .btn-confirm { background: var(--alert-red); color: white; }
 .btn-confirm:hover { background: #cc2e26; transform: translateY(-2px); }
 
+/* New Workflow Buttons */
+.btn-agree { background: #28a745; color: white; }
+.btn-agree:hover { background: #218838; transform: translateY(-2px); }
+
+.btn-review { background: #ff9f00; color: white; }
+.btn-review:hover { background: #e68f00; transform: translateY(-2px); }
+
 /* Role Selection & Checkboxes */
 .role-selection { display: flex; gap: 10px; margin-top: 20px; }
 .role-btn { flex: 1; padding: 12px 5px; font-size: 11px; }
@@ -143,7 +150,7 @@ button {
 .assignee-btn { background: var(--border-gray); color: var(--text-main); }
 .assignee-btn:hover { background: #ccc; }
 
-.input-label { font-size: 12px; text-align: left; margin: 15px 0 10px; color: var(--corp-blue); }
+.input-label { font-size: 12px; text-align: left; margin: 15px 0 10px; color: var(--corp-blue); font-weight: bold;}
 .checkbox-list { text-align: left; max-height: 120px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; padding: 10px; border-radius: 6px; }
 .sector-checkbox-label { display: block; font-size: 14px; margin-bottom: 8px; cursor: pointer; }
 .sector-check { width: auto; margin-right: 10px; }
@@ -310,17 +317,18 @@ button {
 .notif-item.unread { background: #f0f7ff; font-weight: bold; color: var(--corp-blue); border-left: 3px solid var(--corp-blue); }
 
 /* Task Tabs & Layout */
-.tab-container { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border-gray); padding-bottom: 10px; }
+.tab-container { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid var(--border-gray); padding-bottom: 10px; }
 .tab-btn {
-    width: auto;
+    flex: 1; /* Automatically equalizes tab widths */
     background: transparent;
     color: #888;
     border: none;
-    font-size: 14px;
-    padding: 10px 20px;
+    font-size: 13px;
+    padding: 10px 5px;
     margin: 0;
+    text-align: center;
 }
-.tab-btn.active { color: var(--corp-blue); border-bottom: 3px solid var(--corp-blue); border-radius: 0; }
+.tab-btn.active { color: var(--corp-blue); border-bottom: 3px solid var(--corp-blue); border-radius: 0; font-weight: bold; }
 .tab-btn:hover { background: #eee; }
 
 /* Task Cards */
@@ -345,6 +353,7 @@ button {
 .status-green { border-left-color: #28a745; }
 .status-yellow { border-left-color: #ffc107; }
 .status-red { border-left-color: #dc3545; }
+.status-purple { border-left-color: #8e44ad; } /* Color for requests */
 
 /* =========================================
    🔔 WHATSAPP-STYLE POP-UP NOTIFICATIONS
@@ -426,14 +435,14 @@ button {
         justify-content: space-between !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        gap: 5px !important; /* Small gap between tabs */
+        gap: 2px !important; /* Minimized gap to ensure 4 tabs fit perfectly */
     }
 
     .tab-btn {
-        flex: 1 !important; /* Divides the width equally by 3 */
+        flex: 1 !important; /* Divides the width equally by 4 */
         width: auto !important;
-        padding: 10px 5px !important;
-        font-size: 13px !important; /* Perfect middle ground size */
+        padding: 10px 2px !important;
+        font-size: 10px !important; /* Smaller text so REQUESTS fits on one line */
         text-align: center !important;
         margin-bottom: 10px !important;
     }
@@ -463,6 +472,8 @@ button {
     .task-card, 
     .employee-row,
     .btn-main, 
+    .btn-agree,
+    .btn-review,
     input[type="text"], 
     input[type="password"], 
     input[type="datetime-local"] {
@@ -482,6 +493,7 @@ button {
         from { transform: translateY(-120%); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
     }
+
     /* 8. FIX THE NOTIFICATION BOX OVERFLOW */
     .notif-wrapper {
         position: static !important; /* Detaches the box from the tiny bell */

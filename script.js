@@ -16,6 +16,7 @@ const firebaseConfig = {
 // Initialize Firebase App & Database Reference
 firebase.initializeApp(firebaseConfig);
 const cloudDB = firebase.database().ref('TASK_TERMINAL_LIVE_DB');
+const messaging = firebase.messaging(); // Initializes OS-Level Push Notifications
 
 const core = {
     // 1. Initialize Database with Group Structure
@@ -28,7 +29,7 @@ const core = {
     activeAssignee: null,
     activeTaskId: null,
     currentTab: 'all',
-    lastNotifTime: null, // UPGRADE: Tracks the exact time of the last notification to prevent spam
+    lastNotifTime: null, 
 
     save() {
         cloudDB.set(this.db)
@@ -54,7 +55,6 @@ const core = {
             this.currentUser = session.user;
         }
 
-        // --- REAL-TIME CLOUD LISTENER ---
         cloudDB.on('value', (snapshot) => {
             const data = snapshot.val();
             this.db = data || { groups: {} };
@@ -82,13 +82,13 @@ const core = {
         });
 
         if (session && session.user && session.groupCode) {
+            this.setupPushNotifications(); 
             ui.show('view-dash');
         } else {
             ui.show('view-initial');
         }
     },
 
-    // 2. Gateway Logic (Create & Join)
     createGroup() {
         const nameInput = document.getElementById('new-group-name');
         const name = nameInput.value.trim();
@@ -126,8 +126,6 @@ const core = {
                 } else {
                     alert("Invalid Group Code. Please check and try again.");
                 }
-            }).catch(() => {
-                alert("Cloud connection error. Please check your internet.");
             });
             return; 
         }
@@ -178,7 +176,8 @@ const core = {
             group.users[user] = { 
                 password: pass, 
                 role: role, 
-                enrolled: role === 'assignee' ? selectedSectors : [] 
+                enrolled: role === 'assignee' ? selectedSectors : [],
+                pushToken: ""
             };
             alert(`New account recognized in group "${group.name}". Password set!`);
         } else {
@@ -194,8 +193,32 @@ const core = {
         this.save();
         this.saveSession(); 
         
+        this.setupPushNotifications(); 
+        
         this.renderDashboard();
         ui.show('view-dash');
+    },
+
+    setupPushNotifications() {
+        Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+                console.log('Push Permission granted by user.');
+                messaging.getToken({ vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I' })
+                .then((currentToken) => {
+                    if (currentToken) {
+                        const group = this.db.groups[this.currentGroupCode];
+                        group.users[this.currentUser.name].pushToken = currentToken;
+                        this.save();
+                    }
+                }).catch((err) => {
+                    console.log('An error occurred while retrieving token: ', err);
+                });
+            }
+        });
+
+        messaging.onMessage((payload) => {
+            this.showToast(payload.notification.body, null);
+        });
     },
 
     renderDashboard() {
@@ -309,14 +332,24 @@ const core = {
         document.getElementById('deploy-emp-name').innerText = empName.toUpperCase();
         document.getElementById('new-task-title').value = "";
         document.getElementById('new-task-date').value = "";
+        document.getElementById('new-task-subtasks').value = ""; // Clear subtasks
         ui.show('view-deploy-task');
     },
 
     deployTask() {
         const title = document.getElementById('new-task-title').value.trim();
         const dateLimit = document.getElementById('new-task-date').value;
+        const subtasksText = document.getElementById('new-task-subtasks').value.trim();
 
         if (!title || !dateLimit) return alert("Task Name and Date Limit are required.");
+
+        // Parse the multi-line text area into an array of subtask objects
+        let subtasksArray = [];
+        if (subtasksText) {
+            subtasksArray = subtasksText.split('\n')
+                .filter(line => line.trim() !== '')
+                .map(line => ({ title: line.trim(), done: false }));
+        }
 
         const group = this.db.groups[this.currentGroupCode];
         if (!group.tasks) group.tasks = []; 
@@ -329,7 +362,9 @@ const core = {
             assignedTo: this.activeAssignee,
             assignedBy: this.currentUser.name,
             status: 'pending', 
-            overdueNotified: false
+            overdueNotified: false,
+            subtasks: subtasksArray, // Save checklist
+            feedbackMsg: ""          // Initialize empty feedback
         };
 
         group.tasks.push(newTask);
@@ -341,7 +376,6 @@ const core = {
         );
         
         this.save();
-        
         alert("Task Deployed Successfully!");
         ui.show('view-auth-action');
     },
@@ -386,6 +420,8 @@ const core = {
 
         if (this.currentTab === 'pending') {
             tasks = tasks.filter(t => t.status === 'pending' || t.status === 'overdue');
+        } else if (this.currentTab === 'requests') {
+            tasks = tasks.filter(t => t.status === 'request');
         } else if (this.currentTab === 'completed') {
             tasks = tasks.filter(t => t.status === 'completed');
         }
@@ -399,9 +435,10 @@ const core = {
             let colorClass = "status-yellow";
             if (t.status === 'completed') colorClass = "status-green";
             if (t.status === 'overdue') colorClass = "status-red";
+            if (t.status === 'request') colorClass = "status-purple"; 
 
             let extraBtn = "";
-            if (this.currentUser.role === 'authority' && t.status !== 'completed') {
+            if (this.currentUser.role === 'authority' && (t.status === 'pending' || t.status === 'overdue')) {
                 extraBtn = `<button class="btn-main assign-btn-small" onclick="event.stopPropagation(); core.sendReminder(${t.id})">REMINDER</button>`;
             }
 
@@ -416,6 +453,19 @@ const core = {
         });
     },
 
+    toggleSubtask(taskId, subtaskIndex) {
+        if (this.currentUser.role !== 'assignee') return; // Only Assignee can check boxes
+        
+        const group = this.db.groups[this.currentGroupCode];
+        const task = group.tasks.find(t => t.id === taskId);
+        
+        task.subtasks[subtaskIndex].done = !task.subtasks[subtaskIndex].done;
+        this.save();
+        
+        // Re-render task details to update the submit button visibility
+        this.viewTaskDetails(taskId);
+    },
+
     viewTaskDetails(taskId) {
         const group = this.db.groups[this.currentGroupCode];
         if(!group.tasks) return;
@@ -424,42 +474,122 @@ const core = {
         if(!task) return; 
 
         this.activeTaskId = taskId;
-
         const content = document.getElementById('task-detail-content');
+        
+        let statusDisplay = task.status.toUpperCase();
+        if (task.status === 'request') statusDisplay = 'PENDING APPROVAL ⏳';
+
+        // 1. Generate Feedback Alert UI
+        let feedbackHtml = '';
+        if (task.feedbackMsg && (task.status === 'pending' || task.status === 'overdue')) {
+            feedbackHtml = `
+                <div style="background:#fff3cd; color:#856404; padding:12px; border-left:4px solid #ffeeba; margin-bottom:15px; border-radius:4px; font-size:14px; line-height:1.4;">
+                    <strong>⚠️ AUTHORITY FEEDBACK:</strong><br>${task.feedbackMsg}
+                </div>`;
+        }
+
+        // 2. Generate Sub-Tasks Checklist UI
+        let subtasksHtml = '';
+        let allChecked = true; // Used to hide the Submit button later
+        
+        if (task.subtasks && task.subtasks.length > 0) {
+            subtasksHtml = `<div style="margin-top:15px; padding-top:15px; border-top:1px solid #eee;"><strong>Required Checklist:</strong><br>`;
+            
+            task.subtasks.forEach((st, index) => {
+                if (!st.done) allChecked = false; // Found an unchecked item
+                
+                // Disable checkboxes if it's the Authority looking, or if task is complete
+                const isLocked = (this.currentUser.role !== 'assignee' || task.status === 'completed' || task.status === 'request') ? 'disabled' : '';
+                const textStyle = st.done ? 'text-decoration:line-through; color:#aaa;' : 'color:#333;';
+                
+                subtasksHtml += `
+                    <label style="display:flex; align-items:flex-start; gap:10px; margin-top:10px; font-size:14px; cursor:${isLocked ? 'default' : 'pointer'};">
+                        <input type="checkbox" style="width:20px; height:20px; margin:0; flex-shrink:0;" 
+                            ${st.done ? 'checked' : ''} ${isLocked} 
+                            onchange="core.toggleSubtask(${task.id}, ${index})">
+                        <span style="${textStyle} padding-top:2px;">${st.title}</span>
+                    </label>
+                `;
+            });
+            subtasksHtml += `</div>`;
+        }
+
         content.innerHTML = `
+            ${feedbackHtml}
             <p><strong>Title:</strong> ${task.title}</p>
             <p><strong>Sector:</strong> ${task.sector}</p>
             <p><strong>Assigned To:</strong> ${task.assignedTo}</p>
             <p><strong>Assigned By:</strong> ${task.assignedBy}</p>
             <p><strong>Date Limit:</strong> <span class="${task.status === 'overdue' ? 'accent-red' : ''}">${new Date(task.dueDate).toLocaleString()}</span></p>
-            <p><strong>Status:</strong> ${task.status.toUpperCase()}</p>
+            <p><strong>Status:</strong> <span style="font-weight:bold;">${statusDisplay}</span></p>
+            ${subtasksHtml}
         `;
 
-        const completeBtn = document.getElementById('btn-complete-task');
-        if (this.currentUser.role === 'assignee' && task.status !== 'completed') {
-            completeBtn.style.display = 'block';
-        } else {
-            completeBtn.style.display = 'none';
+        // Handle the action zones dynamically
+        const uploadZone = document.getElementById('assignee-upload-zone');
+        const decisionZone = document.getElementById('authority-decision-zone');
+
+        uploadZone.style.display = 'none';
+        decisionZone.style.display = 'none';
+
+        // UPGRADE: Only show Submit button if all subtasks are checked!
+        if (this.currentUser.role === 'assignee' && (task.status === 'pending' || task.status === 'overdue') && allChecked) {
+            uploadZone.style.display = 'block';
+        }
+
+        if (this.currentUser.role === 'authority' && task.status === 'request') {
+            decisionZone.style.display = 'flex';
         }
 
         ui.show('view-task-details');
     },
 
-    completeTask() {
+    submitRequest() {
         const group = this.db.groups[this.currentGroupCode];
         const task = group.tasks.find(t => t.id === this.activeTaskId);
-        
-        task.status = 'completed';
-        task.completedAt = Date.now(); 
+
+        task.status = 'request';
+        task.feedbackMsg = ""; // Clear feedback history so it's fresh for the next review!
         
         this.addNotification(
             task.assignedBy, 
-            `✅ <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">Completed by ${this.currentUser.name}</span>`, 
+            `🙋 <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">${this.currentUser.name} submitted for review!</span>`, 
             task.id
         );
         this.save();
         
-        alert("Task marked as completed!");
+        alert("Task submitted for approval!");
+        this.openTracking();
+    },
+
+    processRequest(decision) {
+        const group = this.db.groups[this.currentGroupCode];
+        const task = group.tasks.find(t => t.id === this.activeTaskId);
+
+        if (decision === 'agree') {
+            task.status = 'completed';
+            task.completedAt = Date.now(); 
+            this.addNotification(task.assignedTo, `✅ <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">Approved by ${this.currentUser.name}</span>`, task.id);
+            alert("Task Approved and Completed!");
+        } else {
+            // Ask for specific feedback reason
+            const feedback = prompt("Why is this being returned? Enter feedback for the assignee:");
+            if (!feedback) return alert("Feedback is required to return a task for review.");
+            
+            // Ask for new deadline
+            const newTime = prompt("Review Required. Enter new Date Limit (YYYY-MM-DD HH:MM):", task.dueDate);
+            if (!newTime) return; 
+            
+            task.status = 'pending';
+            task.dueDate = newTime;
+            task.overdueNotified = false;
+            task.feedbackMsg = feedback; // Save feedback to DB
+            
+            this.addNotification(task.assignedTo, `🔄 <strong>${task.title.toUpperCase()}</strong><br><span style="font-size:12px; color:#aaa;">Sent back for review. Read the feedback!</span>`, task.id);
+            alert("Task sent back to Assignee with your feedback.");
+        }
+        
+        this.save();
         this.openTracking();
     },
 
@@ -481,12 +611,14 @@ const core = {
         if (!group.users[username].notifications) group.users[username].notifications = [];
         group.users[username].notifications.unshift({ msg: msg, read: false, time: Date.now(), taskId: taskId });
         this.save();
+        
+        // UPGRADE: Call the push function to send a Lock Screen buzz
+        this.sendPushToUser(username, "Task Terminal", msg.replace(/<[^>]*>?/gm, ''));
+
         if (this.currentUser && this.currentUser.name === username) this.updateNotificationUI();
     },
 
-    // --- UPGRADE: THE TOAST ENGINE ---
     showToast(htmlMsg, taskId) {
-        // 1. Create the container if it doesn't exist
         let container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
@@ -494,16 +626,13 @@ const core = {
             document.body.appendChild(container);
         }
 
-        // 2. Create the Pop-up card
         const toast = document.createElement('div');
         toast.className = 'toast-msg';
         toast.innerHTML = htmlMsg;
 
-        // 3. Make it clickable to jump straight to the task
         if (taskId) {
             toast.onclick = () => {
                 this.handleNotifClick(taskId, { stopPropagation: () => {} });
-                // Dismiss toast instantly when clicked
                 toast.style.animation = 'fadeOutRight 0.3s forwards';
                 setTimeout(() => toast.remove(), 300);
             };
@@ -511,7 +640,6 @@ const core = {
 
         container.appendChild(toast);
 
-        // 4. Automatically disappear after 4 seconds
         setTimeout(() => {
             if (document.body.contains(toast)) {
                 toast.style.animation = 'fadeOutRight 0.3s forwards';
@@ -526,20 +654,16 @@ const core = {
         const userNode = group.users[this.currentUser.name];
         if (!userNode.notifications) userNode.notifications = [];
 
-        // --- UPGRADE: TRIGGER TOAST ONLY FOR NEW CLOUD EVENTS ---
         if (userNode.notifications.length > 0) {
             const latestNotif = userNode.notifications[0];
             
             if (this.lastNotifTime === null) {
-                // First time loading the app, don't show popups for old stuff
                 this.lastNotifTime = latestNotif.time;
             } else if (latestNotif.time > this.lastNotifTime) {
-                // A BRAND NEW notification arrived! Show the WhatsApp-style popup!
                 this.showToast(latestNotif.msg, latestNotif.taskId);
                 this.lastNotifTime = latestNotif.time;
             }
         }
-        // -------------------------------------------------------
 
         const unread = userNode.notifications.filter(n => !n.read).length;
         document.getElementById('notif-count').innerText = unread;
@@ -596,7 +720,7 @@ const core = {
         let changed = false;
 
         group.tasks.forEach(task => {
-            if (task.status !== 'completed' && new Date(task.dueDate).getTime() < now) {
+            if (task.status !== 'completed' && task.status !== 'request' && new Date(task.dueDate).getTime() < now) {
                 if (!task.overdueNotified) {
                     task.status = 'overdue';
                     task.overdueNotified = true;
@@ -663,9 +787,34 @@ const core = {
     logout() {
         this.currentUser = null;
         this.currentGroupCode = null;
-        this.lastNotifTime = null; // UPGRADE: Reset notification tracker on logout
+        this.lastNotifTime = null; 
         localStorage.removeItem('TASK_SESSION'); 
         ui.show('view-initial');
+    },
+
+    // This function triggers the OS-level buzz on the other person's phone
+    async sendPushToUser(targetUsername, title, body) {
+        const group = this.db.groups[this.currentGroupCode];
+        const targetUser = group.users[targetUsername];
+        
+        if (!targetUser || !targetUser.pushToken) return;
+
+        // REPLACE THIS PLACEHOLDER WITH YOUR REAL KEY
+        const fcmServerKey = "YOUR_FCM_SERVER_KEY"; 
+
+        const message = {
+            notification: { title: title, body: body },
+            to: targetUser.pushToken
+        };
+
+        fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'key=' + fcmServerKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(message)
+        }).catch(err => console.error("Push failed:", err));
     }
 };
 
