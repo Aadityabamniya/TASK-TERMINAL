@@ -87,6 +87,12 @@ const core = {
         } else {
             ui.show('view-initial');
         }
+          // Add this at the bottom of core.init()
+         window.onpopstate = (event) => {
+       if (event.state && event.state.viewId) {
+        ui.show(event.state.viewId, false); // false ensures we don't create an infinite loop
+       }
+};
     },
 
     createGroup() {
@@ -819,12 +825,18 @@ const core = {
 };
 
 const ui = {
-    show(id) {
+    // We add 'pushToHistory' parameter which defaults to true
+    show(id, pushToHistory = true) {
         document.querySelectorAll('.view-container, .dashboard-view').forEach(v => v.style.display = 'none');
         document.getElementById(id).style.display = 'flex';
         
         if(id === 'view-dash' || id === 'view-tracking') {
             document.getElementById(id).style.display = 'block';
+        }
+
+        // --- THE BACK BUTTON FIX ---
+        if (pushToHistory) {
+            history.pushState({ viewId: id }, "", ""); 
         }
 
         if(id === 'view-create') {

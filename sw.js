@@ -2,7 +2,6 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-// USE YOUR REAL CONFIG HERE
 firebase.initializeApp({
     apiKey: "AIzaSyBUW2AMdHObQW31ZsLtdRWSU6L8AwxxSW4",
     authDomain: "task-terminal-9e678.firebaseapp.com",
@@ -14,13 +13,15 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// This is the part that handles the Lock Screen notification!
+// This forces the notification into the Android/iOS System Tray
 messaging.onBackgroundMessage((payload) => {
+    console.log("Background Push Received:", payload);
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
         body: payload.notification.body,
         icon: 'https://cdn-icons-png.flaticon.com/512/906/906334.png',
-        badge: 'https://cdn-icons-png.flaticon.com/512/906/906334.png'
+        badge: 'https://cdn-icons-png.flaticon.com/512/906/906334.png',
+        vibrate: [200, 100, 200]
     };
 
     return self.registration.showNotification(notificationTitle, notificationOptions);
