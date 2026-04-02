@@ -94,6 +94,8 @@
                 </div>
                 
                 <div class="header-right">
+                    <button id="btn-stats" class="btn-main" style="width:auto; padding:8px 15px; margin-right:15px; display:none; font-size:11px;" onclick="core.renderAnalytics()">📊 STATS</button>
+                    
                     <div class="notif-wrapper" onclick="core.toggleNotifications()">
                         <span class="notif-bell">🔔<span id="notif-count">0</span></span>
                         <div id="notif-dropdown" class="notif-dropdown" style="display:none;">
@@ -107,14 +109,28 @@
 
             <div class="dashboard-container">
                 <main class="content-area">
+                    <div id="global-controls" style="margin-bottom: 25px; display: none;">
+                        <input type="text" id="global-search" placeholder="Search tasks by name, sector, or employee..." onkeyup="core.performGlobalSearch()" style="margin-bottom:10px;">
+                       <button id="btn-master-toggle" class="btn-main" style="width:auto;" onclick="core.toggleMasterView()">VIEW ALL PENDING TASKS</button>
+
                     <h2 id="welcome-msg" class="section-title">SECTOR OVERVIEW</h2>
                     <h3 id="group-name-display" class="group-subtitle">Group: </h3>
+                    
                     <div id="sector-display" class="sector-grid"></div>
+                    <div id="master-task-display" class="task-list" style="display:none;"></div>
                 </main>
 
                 <aside class="action-zone" id="auth-tools" style="display:none;">
                     <button class="btn-create-sector" onclick="core.createNewSector()">+ CREATE NEW SECTOR</button>
                 </aside>
+            </div>
+        </div>
+
+        <div id="view-stats" class="view-container" style="display:none;">
+            <div class="card-ui" style="width: 500px; max-width: 95%; text-align: left;">
+                <div class="back-nav" onclick="ui.show('view-dash')">←</div>
+                <h2 class="official-title" style="text-align: center;">PERFORMANCE ANALYTICS</h2>
+                <div id="stats-content" style="margin-bottom: 20px;"></div>
             </div>
         </div>
 
@@ -199,6 +215,8 @@
 
             </div>
         </div>
+
+        <button id="btn-install-pwa" class="install-pwa-tab" style="display: none;">📱 INSTALL APP</button>
 
     </div>
 

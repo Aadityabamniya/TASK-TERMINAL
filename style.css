@@ -391,6 +391,39 @@ button {
     from { transform: translateX(0); opacity: 1; }
     to { transform: translateX(120%); opacity: 0; }
 }
+/* =========================================
+   📱 PWA INSTALL TAB (The "App" Button)
+   ========================================= */
+.install-pwa-tab {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1c1c1e;
+    color: #ffffff;
+    padding: 12px 25px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: bold;
+    border: 2px solid var(--corp-blue);
+    cursor: pointer;
+    z-index: 9999;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    transition: 0.3s;
+    width: auto;
+}
+
+.install-pwa-tab:hover {
+    background: var(--corp-blue);
+    transform: translateX(-50%) translateY(-3px);
+}
+
+/* Completely hides the button if they are already in the installed App! */
+@media all and (display-mode: standalone) {
+    .install-pwa-tab {
+        display: none !important;
+    }
+}
 
 
 /* =========================================
