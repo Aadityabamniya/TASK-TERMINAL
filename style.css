@@ -100,7 +100,7 @@ body {
 }
 
 /* Inputs & Buttons */
-input {
+input, textarea {
     width: 100%;
     padding: 12px;
     margin-bottom: 15px;
@@ -110,7 +110,7 @@ input {
     background: #fafafa;
     font-family: inherit;
 }
-input:disabled {
+input:disabled, textarea:disabled {
     background: #eee;
     color: #888;
     cursor: not-allowed;
@@ -391,6 +391,7 @@ button {
     from { transform: translateX(0); opacity: 1; }
     to { transform: translateX(120%); opacity: 0; }
 }
+
 /* =========================================
    📱 PWA INSTALL TAB (The "App" Button)
    ========================================= */
@@ -418,20 +419,17 @@ button {
     transform: translateX(-50%) translateY(-3px);
 }
 
-/* Completely hides the button if they are already in the installed App! */
 @media all and (display-mode: standalone) {
     .install-pwa-tab {
         display: none !important;
     }
 }
 
-
 /* =========================================
    📱 MOBILE RESPONSIVE DESIGN (Phones & Tablets)
    ========================================= */
 @media screen and (max-width: 768px) {
     
-    /* 1. Prevent completely any invisible horizontal scrolling */
     html, body {
         max-width: 100vw;
         overflow-x: hidden;
@@ -439,21 +437,18 @@ button {
         padding: 0;
     }
 
-    /* 2. THE TOP WHITE BOX: Fit perfectly without cutting */
-   /* 2. THE TOP WHITE BOX: Fit perfectly without cutting */
+    /* BUG 3 FIXED: Flex-wrap allows buttons to stay on screen */
     .main-header {
         width: 100% !important;
         box-sizing: border-box !important;
         padding: 15px 10px !important; 
         display: flex !important;
         flex-direction: row !important; 
-        flex-wrap: wrap !important; /* THIS IS THE MAGIC FIX */
+        flex-wrap: wrap !important; /* <--- THIS FIXES THE SQUISH */
         justify-content: space-between !important;
         align-items: center !important;
-        gap: 10px;
     }
 
-    /* Shrink the branding and logout button just enough to fit comfortably */
     .branding { font-size: 16px !important; }
     .b-terminal { padding: 2px 8px !important; }
     
@@ -461,36 +456,34 @@ button {
         display: flex !important;
         align-items: center !important;
         justify-content: flex-end !important;
-        flex-wrap: wrap !important; /* THIS KEEPS STATS ON SCREEN */
+        flex-wrap: wrap !important; /* <--- THIS KEEPS STATS/LOGOUT VISIBLE */
         gap: 12px !important; 
     }
     
     .btn-logout-glow {
         padding: 8px 16px !important;
         font-size: 12px !important;
-        white-space: nowrap !important; /* Forces the text to stay on one line */
+        white-space: nowrap !important; 
     }
 
-    /* 3. TABS: Keep them Horizontal and readable */
     .tab-container {
         display: flex !important;
-        flex-direction: row !important; /* Forces them to sit side-by-side */
+        flex-direction: row !important; 
         justify-content: space-between !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        gap: 2px !important; /* Minimized gap to ensure 4 tabs fit perfectly */
+        gap: 2px !important; 
     }
 
     .tab-btn {
-        flex: 1 !important; /* Divides the width equally by 4 */
+        flex: 1 !important; 
         width: auto !important;
         padding: 10px 2px !important;
-        font-size: 10px !important; /* Smaller text so REQUESTS fits on one line */
+        font-size: 10px !important; 
         text-align: center !important;
         margin-bottom: 10px !important;
     }
 
-    /* 4. MAIN BODY CONTAINERS: Keep them 100% wide */
     .view-container, 
     .dashboard-view,
     .dashboard-container {
@@ -500,7 +493,6 @@ button {
         padding: 15px !important;
     }
 
-    /* 5. Stack the sector and action buttons vertically */
     #sector-display,
     #auth-tools {
         display: flex;
@@ -510,7 +502,6 @@ button {
         width: 100% !important;
     }
 
-    /* 6. Ensure cards don't spill off the edge */
     .sector-card, 
     .task-card, 
     .employee-row,
@@ -524,7 +515,6 @@ button {
         box-sizing: border-box !important;
     }
 
-    /* 7. WhatsApp Pop-up adjustment for mobile */
     #toast-container {
         top: 10px; left: 5%; right: 5%;
     }
@@ -537,17 +527,16 @@ button {
         to { transform: translateY(0); opacity: 1; }
     }
 
-    /* 8. FIX THE NOTIFICATION BOX OVERFLOW */
     .notif-wrapper {
-        position: static !important; /* Detaches the box from the tiny bell */
+        position: static !important; 
     }
 
     .notif-dropdown {
         position: absolute !important;
-        top: 60px !important; /* Puts it right below your white header */
+        top: 60px !important; 
         left: 5% !important;
         right: auto !important;
-        width: 90% !important; /* Safely fits inside the phone screen */
+        width: 90% !important; 
         box-sizing: border-box !important;
         z-index: 3000 !important;
     }

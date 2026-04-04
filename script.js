@@ -59,7 +59,6 @@ const core = {
                     this.currentUser = { name: this.currentUser.name, ...group.users[this.currentUser.name] };
                     this.updateNotificationUI();
                     
-                    // NEW: Smart 1-Hour Reminders
                     this.checkTaskDeadlines(); 
                     
                     if (document.getElementById('view-dash').style.display === 'block') this.renderDashboard();
@@ -158,49 +157,48 @@ const core = {
         ui.show('view-dash');
     },
 
-   // FIX: Stops the endless notification prompts
-    // BULLETPROOF FIX: Stops the endless notification prompts using LocalStorage
+    // BULLETPROOF FIX: LocalStorage Lock to stop endless permission loops
     setupPushNotifications() {
-        // 1. Check if the browser even supports notifications
         if (!('Notification' in window)) return;
-        
-        // 2. If already granted, just grab the token silently and start listening!
         if (Notification.permission === 'granted') {
             this.getFCMToken();
             return;
         }
-
-        // 3. If they explicitly clicked "Block", leave them alone.
         if (Notification.permission === 'denied') return;
-
-        // 4. THE MAGIC LOCK: Check if we have EVER asked them before on this device
-        const hasAskedBefore = localStorage.getItem('TASK_PUSH_ASKED');
-        if (hasAskedBefore) return; // We asked before, do not ask again!
-
-        // 5. If we made it here, it's their very first time. 
-        // Lock the door behind us so we never ask again, then show the prompt.
-        localStorage.setItem('TASK_PUSH_ASKED', 'true');
         
+        const hasAskedBefore = localStorage.getItem('TASK_PUSH_ASKED');
+        if (hasAskedBefore) return;
+
+        localStorage.setItem('TASK_PUSH_ASKED', 'true');
         Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-                this.getFCMToken();
-            }
+            if (permission === 'granted') this.getFCMToken();
         });
     },
 
-  // Helper function to keep the code clean
+    // BUG 2 FIXED: Service Worker 404 block and database race condition resolved
     getFCMToken() {
         this.pushSetupDone = true;
-        messaging.getToken({ vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I' })
-        .then((currentToken) => {
-            if (currentToken) {
-                const group = this.db.groups[this.currentGroupCode];
-                group.users[this.currentUser.name].pushToken = currentToken;
-                this.save();
-            }
-        }).catch((err) => console.log('Token error: ', err));
+        
+        navigator.serviceWorker.ready.then((registration) => {
+            messaging.getToken({ 
+                vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I',
+                serviceWorkerRegistration: registration 
+            })
+            .then((currentToken) => {
+                if (currentToken && this.currentGroupCode && this.currentUser) {
+                    cloudDB.child('groups')
+                           .child(this.currentGroupCode)
+                           .child('users')
+                           .child(this.currentUser.name)
+                           .child('pushToken')
+                           .set(currentToken);
+                }
+            }).catch((err) => console.log('Token error: ', err));
+        });
 
-        messaging.onMessage((payload) => { this.showToast(payload.notification.body, null); });
+        messaging.onMessage((payload) => { 
+            this.showToast(payload.notification.body, null); 
+        });
     },
 
     renderDashboard() {
@@ -730,7 +728,6 @@ const core = {
         }
     },
 
-    // OVERDUE AND 1-HOUR REMINDERS LOGIC
     checkTaskDeadlines() {
         if (!this.currentGroupCode) return;
         const group = this.db.groups[this.currentGroupCode];
@@ -743,7 +740,6 @@ const core = {
             if (task.status !== 'completed' && task.status !== 'request') {
                 const timeDiff = new Date(task.dueDate).getTime() - now;
 
-                // Overdue
                 if (timeDiff <= 0 && !task.overdueNotified) {
                     task.status = 'overdue';
                     task.overdueNotified = true;
@@ -751,7 +747,6 @@ const core = {
                     this.addNotification(task.assignedBy, `⚠️ <strong>OVERDUE:</strong> ${task.assignedTo} missed the limit on ${task.title.toUpperCase()}!`, task.id);
                     changed = true;
                 }
-                // 1-Hour Warning (Between 0ms and 3600000ms)
                 else if (timeDiff > 0 && timeDiff <= 3600000 && !task.oneHourNotified) {
                     task.oneHourNotified = true;
                     this.addNotification(task.assignedTo, `🔥 <strong>1 HOUR REMAINING:</strong> ${task.title.toUpperCase()}`, task.id);
@@ -814,8 +809,7 @@ const core = {
         const targetUser = group.users[targetUsername];
         if (!targetUser || !targetUser.pushToken) return;
 
-        // REPLACE THIS WITH YOUR REAL FCM SERVER KEY
-        const fcmServerKey = "BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I"; 
+        const fcmServerKey = "YOUR_FCM_SERVER_KEY"; // <-- REMEMBER TO PUT YOUR KEY BACK HERE
 
         const message = { notification: { title: title, body: body }, to: targetUser.pushToken };
         fetch('https://fcm.googleapis.com/fcm/send', {

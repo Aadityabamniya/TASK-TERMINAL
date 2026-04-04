@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TASK TERMINAL | OFFICIAL</title>
-    <link rel="stylesheet" href="style.css">
-
-    <link rel="manifest" href="manifest.json">
     
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:,"> <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/906/906334.png">
 
@@ -111,9 +111,8 @@
                 <main class="content-area">
                     <div id="global-controls" style="margin-bottom: 25px; display: none;">
                         <input type="text" id="global-search" placeholder="Search tasks by name, sector, or employee..." onkeyup="core.performGlobalSearch()" style="margin-bottom:10px;">
-                       <button id="btn-master-toggle" class="btn-main" style="width:auto;" onclick="core.toggleMasterView()">VIEW ALL PENDING TASKS</button>
-
-                    <h2 id="welcome-msg" class="section-title">SECTOR OVERVIEW</h2>
+                        <button id="btn-master-toggle" class="btn-main" style="width:auto;" onclick="core.toggleMasterView()">VIEW ALL PENDING TASKS</button>
+                    </div> <h2 id="welcome-msg" class="section-title">SECTOR OVERVIEW</h2>
                     <h3 id="group-name-display" class="group-subtitle">Group: </h3>
                     
                     <div id="sector-display" class="sector-grid"></div>
