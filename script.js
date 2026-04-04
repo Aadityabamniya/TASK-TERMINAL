@@ -6,15 +6,12 @@ const firebaseConfig = {
     authDomain: "task-terminal-9e678.firebaseapp.com",
     projectId: "task-terminal-9e678",
     storageBucket: "task-terminal-9e678.firebasestorage.app",
-    messagingSenderId: "418579327777",
-    appId: "1:418579327777:web:80f9cbfb7a3b77107aec60",
     measurementId: "G-KYR3C6TPBH",
     databaseURL: "https://task-terminal-9e678-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 firebase.initializeApp(firebaseConfig);
 const cloudDB = firebase.database().ref('TASK_TERMINAL_LIVE_DB');
-const messaging = firebase.messaging();
 
 const core = {
     db: { groups: {} },
@@ -25,9 +22,12 @@ const core = {
     activeAssignee: null,
     activeTaskId: null,
     currentTab: 'all',
+    
+    // Notification & Chat Trackers
     lastNotifTime: null, 
+    lastChatTimes: {}, 
+    activeChatTarget: null, 
     isMasterView: false, 
-    pushSetupDone: false, // Prevents asking for permissions in an endless loop
 
     save() {
         cloudDB.set(this.db).catch((error) => {
@@ -57,13 +57,17 @@ const core = {
                 const group = this.db.groups[this.currentGroupCode];
                 if (group && group.users && group.users[this.currentUser.name]) {
                     this.currentUser = { name: this.currentUser.name, ...group.users[this.currentUser.name] };
-                    this.updateNotificationUI();
                     
+                    this.updateNotificationUI();
+                    this.processChatUpdates(); // NEW: Realtime chat listeners
                     this.checkTaskDeadlines(); 
                     
-                    if (document.getElementById('view-dash').style.display === 'block') this.renderDashboard();
-                    if (document.getElementById('view-tracking').style.display === 'block') this.renderTaskList();
-                    if (document.getElementById('view-task-details').style.display === 'block') this.viewTaskDetails(this.activeTaskId); 
+                    // FIX: Changed '=== block' to '!== none' so Flex windows auto-update instantly
+                    if (document.getElementById('view-dash').style.display !== 'none') this.renderDashboard();
+                    if (document.getElementById('view-tracking').style.display !== 'none') this.renderTaskList();
+                    if (document.getElementById('view-task-details').style.display !== 'none') this.viewTaskDetails(this.activeTaskId); 
+                    if (document.getElementById('view-contact-list').style.display !== 'none') this.renderContactList(); 
+                    if (document.getElementById('view-chat-window').style.display !== 'none') this.renderChatMessages(); 
                 } else this.logout(); 
             }
         });
@@ -87,7 +91,7 @@ const core = {
         const name = nameInput.value.trim();
         if (!name) return alert("Please enter a Group Name first.");
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        this.db.groups[code] = { name: name, sectors: [], users: {} };
+        this.db.groups[code] = { name: name, sectors: [], users: {}, chats: {} };
         this.save();
         this.currentGroupCode = code;
         document.getElementById('display-group-code').innerText = code;
@@ -142,7 +146,7 @@ const core = {
         const selectedSectors = Array.from(checks).map(c => c.value);
 
         if (!group.users[user]) {
-            group.users[user] = { password: pass, role: role, enrolled: role === 'assignee' ? selectedSectors : [], pushToken: "" };
+            group.users[user] = { password: pass, role: role, enrolled: role === 'assignee' ? selectedSectors : [] };
             alert(`New account recognized in group "${group.name}". Password set!`);
         } else {
             if (group.users[user].password !== pass) return alert("Incorrect password for this user.");
@@ -157,48 +161,9 @@ const core = {
         ui.show('view-dash');
     },
 
-    // BULLETPROOF FIX: LocalStorage Lock to stop endless permission loops
+    // IN-APP NOTIFICATIONS ONLY (External popup logic removed)
     setupPushNotifications() {
-        if (!('Notification' in window)) return;
-        if (Notification.permission === 'granted') {
-            this.getFCMToken();
-            return;
-        }
-        if (Notification.permission === 'denied') return;
-        
-        const hasAskedBefore = localStorage.getItem('TASK_PUSH_ASKED');
-        if (hasAskedBefore) return;
-
-        localStorage.setItem('TASK_PUSH_ASKED', 'true');
-        Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') this.getFCMToken();
-        });
-    },
-
-    // BUG 2 FIXED: Service Worker 404 block and database race condition resolved
-    getFCMToken() {
-        this.pushSetupDone = true;
-        
-        navigator.serviceWorker.ready.then((registration) => {
-            messaging.getToken({ 
-                vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I',
-                serviceWorkerRegistration: registration 
-            })
-            .then((currentToken) => {
-                if (currentToken && this.currentGroupCode && this.currentUser) {
-                    cloudDB.child('groups')
-                           .child(this.currentGroupCode)
-                           .child('users')
-                           .child(this.currentUser.name)
-                           .child('pushToken')
-                           .set(currentToken);
-                }
-            }).catch((err) => console.log('Token error: ', err));
-        });
-
-        messaging.onMessage((payload) => { 
-            this.showToast(payload.notification.body, null); 
-        });
+        console.log("External push disabled. Relying entirely on In-App Toasts.");
     },
 
     renderDashboard() {
@@ -207,6 +172,7 @@ const core = {
         const authTools = document.getElementById('auth-tools');
         const globalControls = document.getElementById('global-controls');
         const statsBtn = document.getElementById('btn-stats');
+        const assigneeShortcut = document.getElementById('assignee-chat-shortcut');
         
         const group = this.db.groups[this.currentGroupCode];
 
@@ -218,11 +184,13 @@ const core = {
         this.checkTaskDeadlines();
         this.runSystemMaintenance(); 
         this.updateNotificationUI();
+        this.processChatUpdates(); 
 
         if (this.currentUser.role === 'authority') {
             authTools.style.display = 'flex'; 
             globalControls.style.display = 'block';
             statsBtn.style.display = 'inline-block';
+            assigneeShortcut.style.display = 'none';
             
             if (this.isMasterView) {
                 display.style.display = 'none';
@@ -249,9 +217,11 @@ const core = {
                 }
             }
         } else {
+            // Assignee View
             authTools.style.display = 'none';
             globalControls.style.display = 'none';
             statsBtn.style.display = 'none';
+            assigneeShortcut.style.display = 'block'; // Show Chat Button
             display.style.display = 'grid';
             masterDisplay.style.display = 'none';
             
@@ -316,6 +286,229 @@ const core = {
         this.activeSector = sector;
         this.viewTaskDetails(taskId);
     },
+
+    // ==========================================
+    // 💬 NEW UNIFIED CHAT SYSTEM
+    // ==========================================
+
+    getRoomId(user1, user2) {
+        // Alphabetical sorting ensures both users always target the same room
+        return [user1, user2].sort().join('_');
+    },
+
+    openContactList() {
+        document.getElementById('chat-search').value = '';
+        this.activeChatTarget = null;
+        this.renderContactList();
+        ui.show('view-contact-list');
+    },
+
+    renderContactList() {
+        const group = this.db.groups[this.currentGroupCode];
+        const container = document.getElementById('chat-contact-container');
+        container.innerHTML = "";
+        
+        if (!group.users) return;
+
+        let contacts = [];
+        // Authority sees ALL members. Assignees see ONLY Authorities.
+        for (let username in group.users) {
+            if (username === this.currentUser.name) continue; 
+            
+            const u = group.users[username];
+            if (this.currentUser.role === 'authority') {
+                contacts.push(username); 
+            } else if (u.role === 'authority') {
+                contacts.push(username); 
+            }
+        }
+
+        if (contacts.length === 0) {
+            container.innerHTML = "<p class='hint'>No contacts available.</p>";
+            return;
+        }
+
+        contacts.forEach(contact => {
+            const roomId = this.getRoomId(this.currentUser.name, contact);
+            const chatData = (group.chats && group.chats[roomId]) ? group.chats[roomId] : null;
+            
+            let unreadCount = 0;
+            if (chatData && chatData.unread && chatData.unread[this.currentUser.name]) {
+                unreadCount = chatData.unread[this.currentUser.name];
+            }
+
+            let badgeHtml = unreadCount > 0 ? `<span class="chat-badge">${unreadCount} NEW</span>` : "";
+            
+            container.innerHTML += `
+                <div class="employee-row contact-row" style="cursor:pointer;" onclick="core.openChat('${contact}')">
+                    <span class="emp-name" style="color:var(--text-main); font-size:16px;">
+                        👤 ${contact} ${badgeHtml}
+                    </span>
+                    <span style="color:#aaa;">›</span>
+                </div>`;
+        });
+    },
+
+    filterChatContacts() {
+        const query = document.getElementById('chat-search').value.toLowerCase();
+        document.querySelectorAll('.contact-row').forEach(row => {
+            const name = row.querySelector('.emp-name').innerText.toLowerCase();
+            row.style.display = name.includes(query) ? "flex" : "none";
+        });
+    },
+
+    openChat(targetUser) {
+        this.activeChatTarget = targetUser;
+        document.getElementById('chat-target-name').innerText = "CHAT: " + targetUser.toUpperCase();
+        document.getElementById('chat-input-field').value = '';
+        
+        // Clear unread count for this room upon opening
+        const group = this.db.groups[this.currentGroupCode];
+        const roomId = this.getRoomId(this.currentUser.name, targetUser);
+        if (group.chats && group.chats[roomId] && group.chats[roomId].unread) {
+            group.chats[roomId].unread[this.currentUser.name] = 0;
+            this.save();
+        }
+
+        this.renderChatMessages();
+        ui.show('view-chat-window');
+    },
+
+    renderChatMessages() {
+        if (!this.activeChatTarget) return;
+        
+        const group = this.db.groups[this.currentGroupCode];
+        const roomId = this.getRoomId(this.currentUser.name, this.activeChatTarget);
+        const container = document.getElementById('chat-messages-container');
+        
+        container.innerHTML = "";
+
+        if (group.chats && group.chats[roomId] && group.chats[roomId].messages) {
+            group.chats[roomId].messages.forEach(msg => {
+                const isMe = msg.sender === this.currentUser.name;
+                const bubbleClass = isMe ? 'chat-msg-sent' : 'chat-msg-recv';
+                
+                // Format Task Doubts bolding
+                let formattedText = msg.text.replace(/(\*\[DOUBT:.*\]\*)/g, '<strong>$1</strong><br>');
+
+                container.innerHTML += `
+                    <div class="${bubbleClass}">
+                        ${formattedText}
+                        <div class="chat-time">${new Date(msg.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    </div>
+                `;
+            });
+        } else {
+            container.innerHTML = `<p class="hint" style="margin-top:20px;">No messages yet. Send a message to start!</p>`;
+        }
+        
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+    },
+
+    handleChatKeyPress(event) {
+        if (event.key === "Enter") this.sendMessage();
+    },
+
+    sendMessage() {
+        const input = document.getElementById('chat-input-field');
+        const text = input.value.trim();
+        if (!text || !this.activeChatTarget) return;
+
+        const group = this.db.groups[this.currentGroupCode];
+        if (!group.chats) group.chats = {};
+        
+        const roomId = this.getRoomId(this.currentUser.name, this.activeChatTarget);
+        if (!group.chats[roomId]) {
+            group.chats[roomId] = { messages: [], unread: {} };
+        }
+
+        const msgObj = {
+            sender: this.currentUser.name,
+            text: text,
+            time: Date.now()
+        };
+
+        group.chats[roomId].messages.push(msgObj);
+        
+        // Increment unread for the target user
+        if (!group.chats[roomId].unread) group.chats[roomId].unread = {};
+        const currentUnread = group.chats[roomId].unread[this.activeChatTarget] || 0;
+        group.chats[roomId].unread[this.activeChatTarget] = currentUnread + 1;
+
+        this.save();
+        input.value = '';
+    },
+
+    processChatUpdates() {
+        if (!this.currentUser || !this.currentGroupCode) return;
+        const group = this.db.groups[this.currentGroupCode];
+        if (!group.chats) return;
+
+        let totalUnread = 0;
+
+        for (let roomId in group.chats) {
+            // Only process rooms I am a part of
+            if (roomId.includes(this.currentUser.name)) {
+                
+                // 1. Calculate Unread Badges
+                if (group.chats[roomId].unread && group.chats[roomId].unread[this.currentUser.name]) {
+                    totalUnread += group.chats[roomId].unread[this.currentUser.name];
+                }
+
+                // 2. Snapchat-Style Toasts for new incoming messages
+                const msgs = group.chats[roomId].messages;
+                if (msgs && msgs.length > 0) {
+                    const latestMsg = msgs[msgs.length - 1];
+                    
+                    // If the message is from someone else
+                    if (latestMsg.sender !== this.currentUser.name) {
+                        if (!this.lastChatTimes[roomId] || latestMsg.time > this.lastChatTimes[roomId]) {
+                            
+                            // It's a new message! Show toast if we aren't currently staring at that chat
+                            if (this.activeChatTarget !== latestMsg.sender) {
+                                // Extract sender to use in callback closure
+                                const senderName = latestMsg.sender; 
+                                this.showToast(`💬 <strong>${senderName}</strong>: ${latestMsg.text}`, null, () => this.openChat(senderName));
+                            } else {
+                                // If we are in the chat, mark as read immediately
+                                group.chats[roomId].unread[this.currentUser.name] = 0;
+                                this.save();
+                            }
+                            
+                            this.lastChatTimes[roomId] = latestMsg.time;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update the global Chat Bell counter
+        const badge = document.getElementById('chat-notif-count');
+        if (badge) {
+            badge.innerText = totalUnread;
+            badge.style.display = totalUnread > 0 ? 'inline-block' : 'none';
+        }
+    },
+
+    openTaskDoubt() {
+        const group = this.db.groups[this.currentGroupCode];
+        const task = group.tasks.find(t => t.id === this.activeTaskId);
+        if (!task) return;
+
+        // Route Assignee to the Authority who created it
+        const targetAuthority = task.assignedBy;
+        this.openChat(targetAuthority);
+
+        // Auto-fill context header
+        const input = document.getElementById('chat-input-field');
+        input.value = `*[DOUBT: ${task.title.toUpperCase()}]* `;
+        input.focus();
+    },
+
+    // ==========================================
+    // MAIN TASK LOGIC (Continuing as before)
+    // ==========================================
 
     renderAnalytics() {
         const group = this.db.groups[this.currentGroupCode];
@@ -644,11 +837,11 @@ const core = {
         if (!group.users[username].notifications) group.users[username].notifications = [];
         group.users[username].notifications.unshift({ msg: msg, read: false, time: Date.now(), taskId: taskId });
         this.save();
-        this.sendPushToUser(username, "Task Terminal", msg.replace(/<[^>]*>?/gm, ''));
         if (this.currentUser && this.currentUser.name === username) this.updateNotificationUI();
     },
 
-    showToast(htmlMsg, taskId) {
+    // Modified to accept custom callbacks (used for Chat Snap navigation)
+    showToast(htmlMsg, taskId = null, onClickCallback = null) {
         let container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
@@ -658,13 +851,21 @@ const core = {
         const toast = document.createElement('div');
         toast.className = 'toast-msg';
         toast.innerHTML = htmlMsg;
-        if (taskId) {
+        
+        if (onClickCallback) {
+            toast.onclick = () => {
+                onClickCallback();
+                toast.style.animation = 'fadeOutRight 0.3s forwards';
+                setTimeout(() => toast.remove(), 300);
+            };
+        } else if (taskId) {
             toast.onclick = () => {
                 this.handleNotifClick(taskId, { stopPropagation: () => {} });
                 toast.style.animation = 'fadeOutRight 0.3s forwards';
                 setTimeout(() => toast.remove(), 300);
             };
         }
+        
         container.appendChild(toast);
         setTimeout(() => {
             if (document.body.contains(toast)) {
@@ -800,23 +1001,9 @@ const core = {
         this.currentUser = null;
         this.currentGroupCode = null;
         this.lastNotifTime = null; 
+        this.activeChatTarget = null;
         localStorage.removeItem('TASK_SESSION'); 
         ui.show('view-initial');
-    },
-
-    async sendPushToUser(targetUsername, title, body) {
-        const group = this.db.groups[this.currentGroupCode];
-        const targetUser = group.users[targetUsername];
-        if (!targetUser || !targetUser.pushToken) return;
-
-        const fcmServerKey = "YOUR_FCM_SERVER_KEY"; // <-- REMEMBER TO PUT YOUR KEY BACK HERE
-
-        const message = { notification: { title: title, body: body }, to: targetUser.pushToken };
-        fetch('https://fcm.googleapis.com/fcm/send', {
-            method: 'POST',
-            headers: { 'Authorization': 'key=' + fcmServerKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-        }).catch(err => console.error("Push failed:", err));
     }
 };
 
@@ -846,7 +1033,7 @@ const ui = {
 window.onload = () => { core.init(); };
 
 document.addEventListener('click', (event) => {
-    const wrapper = document.querySelector('.notif-wrapper');
+    const wrapper = document.querySelectorAll('.notif-wrapper')[1]; // Task Bell wrapper
     const dropdown = document.getElementById('notif-dropdown');
     if (wrapper && dropdown && dropdown.style.display === 'block') {
         if (!wrapper.contains(event.target)) dropdown.style.display = 'none'; 
