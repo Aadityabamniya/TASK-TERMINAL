@@ -440,20 +440,30 @@ button {
     }
 
     /* 2. THE TOP WHITE BOX: Fit perfectly without cutting */
+   /* 2. THE TOP WHITE BOX: Fit perfectly without cutting */
     .main-header {
         width: 100% !important;
         box-sizing: border-box !important;
-        padding: 15px 10px !important; /* Slightly reduced edge padding */
+        padding: 15px 10px !important; 
         display: flex !important;
-        flex-direction: row !important; /* Keep items horizontal */
+        flex-direction: row !important; 
+        flex-wrap: wrap !important; /* THIS IS THE MAGIC FIX */
         justify-content: space-between !important;
         align-items: center !important;
+        gap: 10px;
     }
 
     /* Shrink the branding and logout button just enough to fit comfortably */
     .branding { font-size: 16px !important; }
     .b-terminal { padding: 2px 8px !important; }
-    .header-right { gap: 12px !important; } /* Bring bell and logout closer */
+    
+    .header-right { 
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        flex-wrap: wrap !important; /* THIS KEEPS STATS ON SCREEN */
+        gap: 12px !important; 
+    }
     
     .btn-logout-glow {
         padding: 8px 16px !important;

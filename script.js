@@ -188,42 +188,7 @@ const core = {
         });
     },
 
-    // Helper function (keep this exactly as it is from the last update)
-    getFCMToken() {
-        this.pushSetupDone = true;
-        
-        messaging.getToken({ vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I' })
-        .then((currentToken) => {
-            if (currentToken) {
-                const group = this.db.groups[this.currentGroupCode];
-                group.users[this.currentUser.name].pushToken = currentToken;
-                this.save();
-            }
-        }).catch((err) => console.log('Token error: ', err));
-
-        messaging.onMessage((payload) => { 
-            this.showToast(payload.notification.body, null); 
-        });
-    },
-
-    // Helper function to keep the code clean
-    getFCMToken() {
-        this.pushSetupDone = true;
-        
-        messaging.getToken({ vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I' })
-        .then((currentToken) => {
-            if (currentToken) {
-                const group = this.db.groups[this.currentGroupCode];
-                group.users[this.currentUser.name].pushToken = currentToken;
-                this.save();
-            }
-        }).catch((err) => console.log('Token error: ', err));
-
-        // Listen for foreground messages
-        messaging.onMessage((payload) => { 
-            this.showToast(payload.notification.body, null); 
-        });
-    },
+  // Helper function to keep the code clean
     getFCMToken() {
         this.pushSetupDone = true;
         messaging.getToken({ vapidKey: 'BMk147uaBXMM2SqmwZm5A_9zkzwc-nwZXyOq9ftxClZ8nm1NPOZuObwb7QY1WxTzJkfXpU7B8QQyM3WWCNSK51I' })
